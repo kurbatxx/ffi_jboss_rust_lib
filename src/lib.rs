@@ -122,8 +122,15 @@ fn calculate_pages(client_amout: u32) -> u32 {
 
 #[no_mangle]
 ///# Safety
-pub unsafe extern "C" fn search_person(raw_fio: *const i8) -> *const i8 {
+pub unsafe extern "C" fn search_person(raw_fio: *const i8, cards: *const i8) -> *const i8 {
     let fio = CStr::from_ptr(raw_fio).to_str().unwrap();
+    let cards = CStr::from_ptr(cards).to_str().unwrap();
+
+    println!("{}", cards);
+
+    let fullname = get_fio(fio.to_string());
+
+    println!("{}", fullname.surname);
 
     let list_client_params = [
         ("AJAXREQUEST", "j_id_jsp_659141934_0"),
@@ -183,21 +190,24 @@ pub unsafe extern "C" fn search_person(raw_fio: *const i8) -> *const i8 {
         (
             //Фамилия
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_26pc51",
-            fio,
+            fullname.surname.as_str(),
         ),
         (
             //Имя
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_30pc51",
-            "",
+            fullname.name.as_str(),
         ),
         (
             //Отчество
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_34pc51",
-            "",
+            fullname.patronymic.as_str(),
         ),
         (
+            //0 не важно наличе карт
+            //1 есть карты
+            //2 нет карт
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_43pc51",
-            "0",
+            cards,
         ),
         (
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_46pc51",
