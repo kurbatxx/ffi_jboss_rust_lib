@@ -3,7 +3,7 @@ extern crate reqwest;
 
 use select::node::Node;
 use serde::Serialize;
-use serde_json::Result;
+use serde_json::{json, Result};
 
 use select::document::Document;
 use select::predicate::{Attr, Name, Predicate};
@@ -46,6 +46,12 @@ pub struct FullName {
     patronymic: String,
 }
 
+#[derive(Debug, Default, Serialize)]
+pub struct AuthorizationToken {
+    cookie: String,
+    error: String,
+}
+
 #[no_mangle]
 ///# Safety
 pub unsafe extern "C" fn authorization(
@@ -79,11 +85,56 @@ pub unsafe extern "C" fn authorization(
 
     if auth_check != None {
         println!("Вошел..");
-        create_string_pointer(cookie)
+        let json = authorization_token_to_json(&AuthorizationToken {
+            cookie: cookie.to_string(),
+            error: "".to_string(),
+        })
+        .expect("Не удалось создать JSON");
+        create_string_pointer(json.as_str())
     } else {
         println!("НЕ Вошел....");
-        create_string_pointer("")
+        let json = authorization_token_to_json(&AuthorizationToken {
+            cookie: cookie.to_string(),
+            error: "Неправильный логин или пароль".to_string(),
+        })
+        .expect("Не удалось создать JSON");
+        create_string_pointer(json.as_str())
     }
+}
+
+#[no_mangle]
+///# Safety
+pub unsafe extern "C" fn logout() {
+
+    let logout_params = [
+        ("AJAXREQUEST", "j_id_jsp_659141934_0"),
+        ("headerForm", "headerForm"),
+        ("autoScroll", ""),
+        ("javax.faces.ViewState", "j_id1"),
+        (
+            "headerForm:j_id_jsp_659141934_66",
+            "headerForm:j_id_jsp_659141934_66",
+        ),
+    ];
+
+    let mut resp = PARSER_CLIENT
+        .post(SITE_URL)
+        .form(&logout_params)
+        .send()
+        .unwrap();
+
+    resp = PARSER_CLIENT.get(SITE_URL).send().unwrap();
+
+    let mut resp_buf: Vec<u8> = vec![];
+    resp.copy_to(&mut resp_buf)
+        .expect("Копирование в буфер не удалось");
+    let html_text = String::from_utf8(resp_buf).unwrap();
+
+    let cookie_raw = &resp.cookies().next().unwrap();
+    let cookie = cookie_raw.value();
+
+    fs::write("logout.html", &html_text).expect("Unable to write file");
+    println!("ВЫШЕЛ--");
 }
 
 fn create_string_pointer(string_to_dart: &str) -> *const i8 {
@@ -95,6 +146,11 @@ fn create_string_pointer(string_to_dart: &str) -> *const i8 {
 
 fn vector_clients_to_json(vector_client: &[SchoolClient]) -> Result<String> {
     let json = serde_json::to_string(vector_client)?;
+    Ok(json)
+}
+
+fn authorization_token_to_json(authorization_token: &AuthorizationToken) -> Result<String> {
+    let json = serde_json::to_string(authorization_token)?;
     Ok(json)
 }
 

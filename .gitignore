@@ -2,3 +2,5 @@
 Cargo.lock
 *.html
 *.json
+
+/.idea
