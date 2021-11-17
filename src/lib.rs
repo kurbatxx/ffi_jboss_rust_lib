@@ -54,7 +54,7 @@ pub struct AuthorizationToken {
 
 #[no_mangle]
 ///# Safety
-pub unsafe extern "C" fn authorization(
+pub unsafe extern "C" fn login(
     raw_username: *const i8,
     raw_password: *const i8,
 ) -> *const i8 {
