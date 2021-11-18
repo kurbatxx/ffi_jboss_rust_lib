@@ -2,7 +2,7 @@ extern crate lazy_static;
 extern crate reqwest;
 
 use select::node::Node;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use serde_json::{json, Result};
 
 use select::document::Document;
@@ -50,6 +50,16 @@ pub struct FullName {
 pub struct AuthorizationToken {
     cookie: String,
     error: String,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct SearchResponse {
+    id: i32,
+    response: String,
+    school_id: i32,
+    cards: i32,
+    page: i32,
+    show_delete: bool
 }
 
 #[no_mangle]
@@ -178,9 +188,15 @@ fn calculate_pages(client_amout: u32) -> u32 {
 
 #[no_mangle]
 ///# Safety
-pub unsafe extern "C" fn search_person(raw_fio: *const i8, cards: *const i8) -> *const i8 {
-    let fio = CStr::from_ptr(raw_fio).to_str().unwrap();
-    let cards = CStr::from_ptr(cards).to_str().unwrap();
+pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 {
+    let search_json = CStr::from_ptr(raw_search_json).to_str().unwrap();
+
+    let search_response: SearchResponse = serde_json::from_str(search_json).unwrap();
+    println!("{}", search_response.response);
+
+    //let cards = CStr::from_ptr(cards).to_str().unwrap();
+    let fio = search_response.response.as_str();
+    let cards = "0";
 
     println!("{}", cards);
 
@@ -263,7 +279,7 @@ pub unsafe extern "C" fn search_person(raw_fio: *const i8, cards: *const i8) -> 
             //1 есть карты
             //2 нет карт
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_43pc51",
-            cards,
+            "0",
         ),
         (
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_46pc51",
