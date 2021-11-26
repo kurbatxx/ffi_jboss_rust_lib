@@ -32,7 +32,7 @@ lazy_static::lazy_static! {
 static mut USERNAME: &str = "username";
 static mut PASSWORD: &str = "password";
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SchoolClient {
     id: String,
     name: FullName,
@@ -41,7 +41,7 @@ pub struct SchoolClient {
     balance: String,
 }
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct FullName {
     surname: String,
     name: String,
@@ -62,6 +62,13 @@ pub struct SearchResponse {
     cards: i32,
     page: i32,
     show_delete: bool,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct SearchRequest {
+    data: Vec<SchoolClient>,
+    all_pages: i32,
+    error: String,
 }
 
 #[no_mangle]
@@ -156,29 +163,30 @@ fn create_string_pointer(string_to_dart: &str) -> *const i8 {
     pointer
 }
 
-fn vector_clients_to_json(vector_client: &[SchoolClient]) -> Result<String> {
-    let json = serde_json::to_string(vector_client)?;
+fn vector_clients_to_json(request: SearchRequest) -> Result<String> {
+    let json = serde_json::to_string(&request)?;
     Ok(json)
 }
+
 
 fn authorization_token_to_json(authorization_token: &AuthorizationToken) -> Result<String> {
     let json = serde_json::to_string(authorization_token)?;
     Ok(json)
 }
 
-fn client_amount(html_search_result: select::document::Document) -> u32 {
+fn client_amount(html_search_result: select::document::Document) -> i32 {
     let mut client_amout = html_search_result.find(Attr(
         "id",
         "workspaceSubView:workspaceForm:workspaceTogglePanel_header",
     ));
 
     let all_text = client_amout.next().unwrap().inner_html();
-    let didit_text: String = all_text.chars().filter(|c| c.is_digit(10)).collect();
-    dbg!(&didit_text);
-    didit_text.parse::<u32>().unwrap()
+    let digit_text: String = all_text.chars().filter(|c| c.is_digit(10)).collect();
+    dbg!(&digit_text);
+    digit_text.parse::<i32>().unwrap()
 }
 
-fn calculate_pages(client_amount: u32) -> u32 {
+fn calculate_pages(client_amount: i32) -> i32 {
     if client_amount == 0 {
         0
     } else if client_amount % 20 == 0 {
@@ -304,47 +312,32 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
         .expect("Unable to write file");
 
     let html_search_result = Document::from(resp_text.as_str());
-    let client_amout = client_amount(html_search_result);
-    let pages = calculate_pages(client_amout);
+    let client_amount = client_amount(html_search_result);
+    let pages: i32 = calculate_pages(client_amount);
     println!("Всего {} страниц", pages);
 
     let mut result_vector = get_person_data(resp_text);
+    let  current_page = search_response.page;
 
-    // match search_response.page {
-    //     0 => {
-    //
-    //     }
-    //     _ => {}
-    // }
 
-    for page_index in 2..pages + 1 {
-        let search_param_next = [
-        ("AJAXREQUEST", "j_id_jsp_659141934_0"),
-        ("javax.faces.ViewState", "j_id1"),
-        ("workspaceSubView:workspaceForm:workspacePageSubView:clientListTable:j_id_jsp_635818149_104pc51", &page_index.to_string()),
-        ("ajaxSingle", "workspaceSubView:workspaceForm:workspacePageSubView:clientListTable:j_id_jsp_635818149_104pc51"),	
-        ("AJAX:EVENTS_COUNT", "1"),
-    ];
-
-        let resp = PARSER_CLIENT
-            .post(SITE_URL)
-            .form(&search_param_next)
-            .send()
-            .unwrap();
-
-        let resp_text = &resp.text().unwrap();
-        result_vector.append(&mut get_person_data(resp_text));
-
-        if page_index == pages {
-            dbg!(&result_vector.len());
-            fs::write(
-                JBOSS_FOLDER.to_owned() + "/" + "search_next.html",
-                &resp_text,
-            )
-            .expect("Unable to write file");
+    if current_page == 0 {
+        for page_index in 2..pages + 1 {
+            select_current_page(pages, &mut result_vector, page_index)
         }
+    } else if current_page == 1 {
+    } else if current_page == 2 || current_page <= current_page{
+        result_vector = Vec::new();
+        select_current_page(pages, &mut result_vector, current_page)
+    } else {
     }
-    let json = vector_clients_to_json(&result_vector).expect("Не удалось создать JSON");
+
+    let search_request = SearchRequest {
+        data: result_vector,
+        all_pages: pages,
+        error: "".parse().unwrap()
+    };
+
+    let json = vector_clients_to_json(search_request).expect("Не удалось создать JSON");
     fs::write(JBOSS_FOLDER.to_owned() + "/" + "json_result.json", &json)
         .expect("Unable to write file");
 
@@ -353,6 +346,34 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
     let pointer = string_to_dart.as_ptr();
     std::mem::forget(string_to_dart);
     pointer
+}
+
+fn select_current_page(pages: i32, result_vector: &mut Vec<SchoolClient>, page_index: i32) {
+    let search_param_next = [
+        ("AJAXREQUEST", "j_id_jsp_659141934_0"),
+        ("javax.faces.ViewState", "j_id1"),
+        ("workspaceSubView:workspaceForm:workspacePageSubView:clientListTable:j_id_jsp_635818149_104pc51", &page_index.to_string()),
+        ("ajaxSingle", "workspaceSubView:workspaceForm:workspacePageSubView:clientListTable:j_id_jsp_635818149_104pc51"),
+        ("AJAX:EVENTS_COUNT", "1"),
+    ];
+
+    let resp = PARSER_CLIENT
+        .post(SITE_URL)
+        .form(&search_param_next)
+        .send()
+        .unwrap();
+
+    let resp_text = &resp.text().unwrap();
+    result_vector.append(&mut get_person_data(resp_text));
+
+    if page_index == pages {
+        dbg!(&result_vector.len());
+        fs::write(
+            JBOSS_FOLDER.to_owned() + "/" + "search_next.html",
+            &resp_text,
+        )
+        .expect("Unable to write file");
+    }
 }
 
 fn get_person_data(resp_text: &str) -> Vec<SchoolClient> {
