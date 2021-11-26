@@ -2,7 +2,7 @@ extern crate lazy_static;
 extern crate reqwest;
 
 use select::node::Node;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Result};
 
 use select::document::Document;
@@ -16,7 +16,7 @@ use std::{
 const SITE_URL: &str = "https://bilim.integro.kz:8181/processor/back-office/index.faces";
 const AUTH_URL: &str = "https://bilim.integro.kz:8181/processor/back-office/j_security_check";
 
-const JBOSS_FOLDER: &str= "jboss";
+const JBOSS_FOLDER: &str = "jboss";
 
 #[macro_use]
 lazy_static::lazy_static! {
@@ -61,15 +61,12 @@ pub struct SearchResponse {
     school_id: i32,
     cards: i32,
     page: i32,
-    show_delete: bool
+    show_delete: bool,
 }
 
 #[no_mangle]
 ///# Safety
-pub unsafe extern "C" fn login(
-    raw_username: *const i8,
-    raw_password: *const i8,
-) -> *const i8 {
+pub unsafe extern "C" fn login(raw_username: *const i8, raw_password: *const i8) -> *const i8 {
     let username = CStr::from_ptr(raw_username).to_str().unwrap();
     let password = CStr::from_ptr(raw_password).to_str().unwrap();
 
@@ -92,7 +89,8 @@ pub unsafe extern "C" fn login(
     let cookie_raw = &resp.cookies().next().unwrap();
     let cookie = cookie_raw.value();
 
-    fs::write(JBOSS_FOLDER.to_owned() + "/" + "login.html", &html_text).expect("Unable to write file");
+    fs::write(JBOSS_FOLDER.to_owned() + "/" + "login.html", &html_text)
+        .expect("Unable to write file");
 
     let doc_html = Document::from(html_text.as_str());
     let auth_check = doc_html.find(Attr("id", "headerForm:sysuser")).next();
@@ -119,7 +117,6 @@ pub unsafe extern "C" fn login(
 #[no_mangle]
 ///# Safety
 pub unsafe extern "C" fn logout() {
-
     let logout_params = [
         ("AJAXREQUEST", "j_id_jsp_659141934_0"),
         ("headerForm", "headerForm"),
@@ -147,7 +144,8 @@ pub unsafe extern "C" fn logout() {
     let cookie_raw = &resp.cookies().next().unwrap();
     let cookie = cookie_raw.value();
 
-    fs::write(JBOSS_FOLDER.to_owned() + "/" + "logout.html", &html_text).expect("Unable to write file");
+    fs::write(JBOSS_FOLDER.to_owned() + "/" + "logout.html", &html_text)
+        .expect("Unable to write file");
     println!("ВЫШЕЛ--");
 }
 
@@ -168,7 +166,7 @@ fn authorization_token_to_json(authorization_token: &AuthorizationToken) -> Resu
     Ok(json)
 }
 
-fn client_amout(html_search_result: select::document::Document) -> u32 {
+fn client_amount(html_search_result: select::document::Document) -> u32 {
     let mut client_amout = html_search_result.find(Attr(
         "id",
         "workspaceSubView:workspaceForm:workspaceTogglePanel_header",
@@ -180,13 +178,13 @@ fn client_amout(html_search_result: select::document::Document) -> u32 {
     didit_text.parse::<u32>().unwrap()
 }
 
-fn calculate_pages(client_amout: u32) -> u32 {
-    if client_amout == 0 {
+fn calculate_pages(client_amount: u32) -> u32 {
+    if client_amount == 0 {
         0
-    } else if client_amout % 20 == 0 {
-        client_amout / 20
+    } else if client_amount % 20 == 0 {
+        client_amount / 20
     } else {
-        client_amout / 20 + 1
+        client_amount / 20 + 1
     }
 }
 
@@ -194,19 +192,11 @@ fn calculate_pages(client_amout: u32) -> u32 {
 ///# Safety
 pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 {
     let search_json = CStr::from_ptr(raw_search_json).to_str().unwrap();
-
     let search_response: SearchResponse = serde_json::from_str(search_json).unwrap();
     println!("{}", search_response.response);
 
-    //let cards = CStr::from_ptr(cards).to_str().unwrap();
     let fio = search_response.response.as_str();
-    let cards = search_response.;
-
-    println!("{}", cards);
-
     let fullname = get_fio(fio.to_string());
-
-    println!("{}", fullname.surname);
 
     let list_client_params = [
         ("AJAXREQUEST", "j_id_jsp_659141934_0"),
@@ -283,7 +273,7 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
             //1 есть карты
             //2 нет карт
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_43pc51",
-            "0",
+            &search_response.cards.to_string(),
         ),
         (
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_46pc51",
@@ -310,14 +300,22 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
         .unwrap();
     let resp_text = &resp.text().unwrap();
 
-    fs::write(JBOSS_FOLDER.to_owned() + "/" + "search.html", &resp_text).expect("Unable to write file");
+    fs::write(JBOSS_FOLDER.to_owned() + "/" + "search.html", &resp_text)
+        .expect("Unable to write file");
 
     let html_search_result = Document::from(resp_text.as_str());
-    let client_amout = client_amout(html_search_result);
+    let client_amout = client_amount(html_search_result);
     let pages = calculate_pages(client_amout);
     println!("Всего {} страниц", pages);
 
     let mut result_vector = get_person_data(resp_text);
+
+    // match search_response.page {
+    //     0 => {
+    //
+    //     }
+    //     _ => {}
+    // }
 
     for page_index in 2..pages + 1 {
         let search_param_next = [
@@ -339,11 +337,16 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
 
         if page_index == pages {
             dbg!(&result_vector.len());
-            fs::write(JBOSS_FOLDER.to_owned() + "/" + "search_next.html", &resp_text).expect("Unable to write file");
+            fs::write(
+                JBOSS_FOLDER.to_owned() + "/" + "search_next.html",
+                &resp_text,
+            )
+            .expect("Unable to write file");
         }
     }
     let json = vector_clients_to_json(&result_vector).expect("Не удалось создать JSON");
-    fs::write(JBOSS_FOLDER.to_owned() + "/" + "json_result.json", &json).expect("Unable to write file");
+    fs::write(JBOSS_FOLDER.to_owned() + "/" + "json_result.json", &json)
+        .expect("Unable to write file");
 
     //Для FFI
     let string_to_dart = CString::new(json).unwrap();
