@@ -35,7 +35,7 @@ static mut PASSWORD: &str = "password";
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SchoolClient {
     id: String,
-    name: FullName,
+    fullname: FullName,
     group: String,
     school: String,
     balance: String,
@@ -43,8 +43,8 @@ pub struct SchoolClient {
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct FullName {
-    surname: String,
     name: String,
+    surname: String,
     patronymic: String,
 }
 
@@ -55,9 +55,9 @@ pub struct AuthorizationToken {
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
-pub struct SearchResponse {
+pub struct SearchRequest {
     id: i32,
-    response: String,
+    request: String,
     school_id: i32,
     cards: i32,
     page: i32,
@@ -65,8 +65,8 @@ pub struct SearchResponse {
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
-pub struct SearchRequest {
-    data: Vec<SchoolClient>,
+pub struct SearchResponse {
+    clients: Vec<SchoolClient>,
     all_pages: i32,
     error: String,
 }
@@ -163,8 +163,8 @@ fn create_string_pointer(string_to_dart: &str) -> *const i8 {
     pointer
 }
 
-fn vector_clients_to_json(request: SearchRequest) -> Result<String> {
-    let json = serde_json::to_string(&request)?;
+fn vector_clients_to_json(response: SearchResponse) -> Result<String> {
+    let json = serde_json::to_string(&response)?;
     Ok(json)
 }
 
@@ -200,10 +200,10 @@ fn calculate_pages(client_amount: i32) -> i32 {
 ///# Safety
 pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 {
     let search_json = CStr::from_ptr(raw_search_json).to_str().unwrap();
-    let search_response: SearchResponse = serde_json::from_str(search_json).unwrap();
-    println!("{}", search_response.response);
+    let search_request: SearchRequest = serde_json::from_str(search_json).unwrap();
+    println!("{}", search_request.request);
 
-    let fio = search_response.response.as_str();
+    let fio = search_request.request.as_str();
     let fullname = get_fio(fio.to_string());
 
     let list_client_params = [
@@ -281,7 +281,7 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
             //1 есть карты
             //2 нет карт
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_43pc51",
-            &search_response.cards.to_string(),
+            &search_request.cards.to_string(),
         ),
         (
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_46pc51",
@@ -317,7 +317,7 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
     println!("Всего {} страниц", pages);
 
     let mut result_vector = get_person_data(resp_text);
-    let  current_page = search_response.page;
+    let  current_page = search_request.page;
 
 
     if current_page == 0 {
@@ -331,13 +331,13 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
     } else {
     }
 
-    let search_request = SearchRequest {
-        data: result_vector,
+    let search_response = SearchResponse {
+        clients: result_vector,
         all_pages: pages,
         error: "".parse().unwrap()
     };
 
-    let json = vector_clients_to_json(search_request).expect("Не удалось создать JSON");
+    let json = vector_clients_to_json(search_response).expect("Не удалось создать JSON");
     fs::write(JBOSS_FOLDER.to_owned() + "/" + "json_result.json", &json)
         .expect("Unable to write file");
 
@@ -391,7 +391,7 @@ fn get_person_data(resp_text: &str) -> Vec<SchoolClient> {
 
         let client = SchoolClient {
             id: cells[1].text(),
-            name: fullname,
+            fullname: fullname,
             group: cells[4].text(),
             school: cells[6].text(),
             //delete 3 symbols ",00"
