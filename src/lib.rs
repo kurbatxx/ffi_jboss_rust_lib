@@ -308,8 +308,8 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
         .unwrap();
     let resp_text = &resp.text().unwrap();
 
-    fs::write(JBOSS_FOLDER.to_owned() + "/" + "search.html", &resp_text)
-        .expect("Unable to write file");
+    // fs::write(JBOSS_FOLDER.to_owned() + "/" + "search.html", &resp_text)
+    //    .expect("Unable to write file");
 
     let html_search_result = Document::from(resp_text.as_str());
     let client_amount = client_amount(html_search_result);
@@ -338,8 +338,8 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
     };
 
     let json = vector_clients_to_json(search_response).expect("Не удалось создать JSON");
-    fs::write(JBOSS_FOLDER.to_owned() + "/" + "json_result.json", &json)
-        .expect("Unable to write file");
+    // fs::write(JBOSS_FOLDER.to_owned() + "/" + "json_result.json", &json)
+    //     .expect("Unable to write file");
 
     //Для FFI
     let string_to_dart = CString::new(json).unwrap();
@@ -368,11 +368,11 @@ fn select_current_page(pages: i32, result_vector: &mut Vec<SchoolClient>, page_i
 
     if page_index == pages {
         dbg!(&result_vector.len());
-        fs::write(
-            JBOSS_FOLDER.to_owned() + "/" + "search_next.html",
-            &resp_text,
-        )
-        .expect("Unable to write file");
+        // fs::write(
+        //     JBOSS_FOLDER.to_owned() + "/" + "search_next.html",
+        //     &resp_text,
+        // )
+        // .expect("Unable to write file");
     }
 }
 
