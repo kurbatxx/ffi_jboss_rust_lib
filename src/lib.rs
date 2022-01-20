@@ -1,5 +1,6 @@
 extern crate lazy_static;
 extern crate reqwest;
+use std::env;
 
 use select::node::Node;
 use serde::{Deserialize, Serialize};
@@ -31,6 +32,8 @@ lazy_static::lazy_static! {
 
 static mut USERNAME: &str = "username";
 static mut PASSWORD: &str = "password";
+static mut APPDIR: &str = "appdir";
+
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SchoolClient {
@@ -73,13 +76,18 @@ pub struct SearchResponse {
 
 #[no_mangle]
 ///# Safety
+pub unsafe extern "C" fn initial(raw_appdir: *const i8) {
+    APPDIR = CStr::from_ptr(raw_appdir).to_str().unwrap();
+    fs::create_dir_all(APPDIR.to_owned() + "/" + JBOSS_FOLDER);
+}
+
+#[no_mangle]
+///# Safety
 pub unsafe extern "C" fn login(raw_username: *const i8, raw_password: *const i8) -> *const i8 {
     let username = CStr::from_ptr(raw_username).to_str().unwrap();
     let password = CStr::from_ptr(raw_password).to_str().unwrap();
 
     let _ = PARSER_CLIENT.get(SITE_URL).send().unwrap();
-
-    fs::create_dir_all(JBOSS_FOLDER);
 
     let auth_params = [("j_username", username), ("j_password", password)];
     let mut resp = PARSER_CLIENT
@@ -96,7 +104,7 @@ pub unsafe extern "C" fn login(raw_username: *const i8, raw_password: *const i8)
     let cookie_raw = &resp.cookies().next().unwrap();
     let cookie = cookie_raw.value();
 
-    fs::write(JBOSS_FOLDER.to_owned() + "/" + "login.html", &html_text)
+    fs::write(APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "login.html", &html_text)
         .expect("Unable to write file");
 
     let doc_html = Document::from(html_text.as_str());
@@ -151,7 +159,7 @@ pub unsafe extern "C" fn logout() {
     let cookie_raw = &resp.cookies().next().unwrap();
     let cookie = cookie_raw.value();
 
-    fs::write(JBOSS_FOLDER.to_owned() + "/" + "logout.html", &html_text)
+    fs::write(APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "logout.html", &html_text)
         .expect("Unable to write file");
     println!("ВЫШЕЛ--");
 }
@@ -308,8 +316,8 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
         .unwrap();
     let resp_text = &resp.text().unwrap();
 
-    // fs::write(JBOSS_FOLDER.to_owned() + "/" + "search.html", &resp_text)
-    //    .expect("Unable to write file");
+    fs::write(APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "search.html", &resp_text)
+       .expect("Unable to write file");
 
     let html_search_result = Document::from(resp_text.as_str());
     let client_amount = client_amount(html_search_result);
@@ -338,8 +346,8 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
     };
 
     let json = vector_clients_to_json(search_response).expect("Не удалось создать JSON");
-    // fs::write(JBOSS_FOLDER.to_owned() + "/" + "json_result.json", &json)
-    //     .expect("Unable to write file");
+    fs::write(APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "json_result.json", &json)
+        .expect("Unable to write file");
 
     //Для FFI
     let string_to_dart = CString::new(json).unwrap();
