@@ -34,7 +34,6 @@ static mut USERNAME: &str = "username";
 static mut PASSWORD: &str = "password";
 static mut APPDIR: &str = "appdir";
 
-
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SchoolClient {
     id: String,
@@ -104,8 +103,11 @@ pub unsafe extern "C" fn login(raw_username: *const i8, raw_password: *const i8)
     let cookie_raw = &resp.cookies().next().unwrap();
     let cookie = cookie_raw.value();
 
-    fs::write(APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "login.html", &html_text)
-        .expect("Unable to write file");
+    fs::write(
+        APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "login.html",
+        &html_text,
+    )
+    .expect("Unable to write file");
 
     let doc_html = Document::from(html_text.as_str());
     let auth_check = doc_html.find(Attr("id", "headerForm:sysuser")).next();
@@ -159,8 +161,11 @@ pub unsafe extern "C" fn logout() {
     let cookie_raw = &resp.cookies().next().unwrap();
     let cookie = cookie_raw.value();
 
-    fs::write(APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "logout.html", &html_text)
-        .expect("Unable to write file");
+    fs::write(
+        APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "logout.html",
+        &html_text,
+    )
+    .expect("Unable to write file");
     println!("ВЫШЕЛ--");
 }
 
@@ -175,7 +180,6 @@ fn vector_clients_to_json(response: SearchResponse) -> Result<String> {
     let json = serde_json::to_string(&response)?;
     Ok(json)
 }
-
 
 fn authorization_token_to_json(authorization_token: &AuthorizationToken) -> Result<String> {
     let json = serde_json::to_string(authorization_token)?;
@@ -213,6 +217,7 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
 
     let fio = search_request.request.as_str();
     let fullname = get_fio(fio.to_string());
+    let show_delete = search_request.show_delete;
 
     let list_client_params = [
         ("AJAXREQUEST", "j_id_jsp_659141934_0"),
@@ -259,6 +264,11 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
         (
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_8pc51",
             "on",
+        ),
+        (
+            //Показвать удалённых
+            "workspaceSubView:workspaceForm:workspacePageSubView:showDeletedClients",
+            if show_delete { "on" } else { "" }, //"on",
         ),
         (
             //ID
@@ -316,8 +326,11 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
         .unwrap();
     let resp_text = &resp.text().unwrap();
 
-    fs::write(APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "search.html", &resp_text)
-       .expect("Unable to write file");
+    fs::write(
+        APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "search.html",
+        &resp_text,
+    )
+    .expect("Unable to write file");
 
     let html_search_result = Document::from(resp_text.as_str());
     let client_amount = client_amount(html_search_result);
@@ -325,15 +338,14 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
     println!("Всего {} страниц", pages);
 
     let mut result_vector = get_person_data(resp_text);
-    let  current_page = search_request.page;
-
+    let current_page = search_request.page;
 
     if current_page == 0 {
         for page_index in 2..pages + 1 {
             select_current_page(pages, &mut result_vector, page_index)
         }
     } else if current_page == 1 {
-    } else if current_page == 2 || current_page <= current_page{
+    } else if current_page == 2 || current_page <= current_page {
         result_vector = Vec::new();
         select_current_page(pages, &mut result_vector, current_page)
     } else {
@@ -342,12 +354,15 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
     let search_response = SearchResponse {
         clients: result_vector,
         all_pages: pages,
-        error: "".parse().unwrap()
+        error: "".parse().unwrap(),
     };
 
     let json = vector_clients_to_json(search_response).expect("Не удалось создать JSON");
-    fs::write(APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "json_result.json", &json)
-        .expect("Unable to write file");
+    fs::write(
+        APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "json_result.json",
+        &json,
+    )
+    .expect("Unable to write file");
 
     //Для FFI
     let string_to_dart = CString::new(json).unwrap();
