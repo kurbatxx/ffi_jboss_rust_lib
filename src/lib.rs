@@ -1,6 +1,5 @@
 extern crate lazy_static;
 extern crate reqwest;
-use std::env;
 
 use select::node::Node;
 use serde::{Deserialize, Serialize};
@@ -18,8 +17,8 @@ const SITE_URL: &str = "https://bilim.integro.kz:8181/processor/back-office/inde
 const AUTH_URL: &str = "https://bilim.integro.kz:8181/processor/back-office/j_security_check";
 
 const JBOSS_FOLDER: &str = "jboss";
+static mut APPDIR: &str = "appdir";
 
-#[macro_use]
 lazy_static::lazy_static! {
     static ref PARSER_CLIENT: reqwest::blocking::Client = reqwest::blocking::Client::builder()
         .use_native_tls()
@@ -32,7 +31,11 @@ lazy_static::lazy_static! {
 
 static mut USERNAME: &str = "username";
 static mut PASSWORD: &str = "password";
-static mut APPDIR: &str = "appdir";
+static mut COOKIE: &str = "cookie";
+
+pub fn test() {
+    println!("Test");
+}
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SchoolClient {
@@ -77,7 +80,8 @@ pub struct SearchResponse {
 ///# Safety
 pub unsafe extern "C" fn initial(raw_appdir: *const i8) {
     APPDIR = CStr::from_ptr(raw_appdir).to_str().unwrap();
-    fs::create_dir_all(APPDIR.to_owned() + "/" + JBOSS_FOLDER);
+    fs::create_dir_all(APPDIR.to_owned() + "/" + JBOSS_FOLDER)
+        .expect("Не удалось создать директорию");
 }
 
 #[no_mangle]
@@ -100,7 +104,7 @@ pub unsafe extern "C" fn login(raw_username: *const i8, raw_password: *const i8)
         .expect("Копирование в буфер не удалось");
     let html_text = String::from_utf8(resp_buf).unwrap();
 
-    let cookie_raw = &resp.cookies().next().unwrap();
+    let cookie_raw = resp.cookies().next().unwrap();
     let cookie = cookie_raw.value();
 
     fs::write(
@@ -114,11 +118,13 @@ pub unsafe extern "C" fn login(raw_username: *const i8, raw_password: *const i8)
 
     if auth_check != None {
         println!("Вошел..");
+
         let json = authorization_token_to_json(&AuthorizationToken {
             cookie: cookie.to_string(),
             error: "".to_string(),
         })
         .expect("Не удалось создать JSON");
+
         create_string_pointer(json.as_str())
     } else {
         println!("НЕ Вошел....");
@@ -145,21 +151,21 @@ pub unsafe extern "C" fn logout() {
         ),
     ];
 
-    let mut resp = PARSER_CLIENT
+    let _ = PARSER_CLIENT
         .post(SITE_URL)
         .form(&logout_params)
         .send()
         .unwrap();
 
-    resp = PARSER_CLIENT.get(SITE_URL).send().unwrap();
+    let mut resp = PARSER_CLIENT.get(SITE_URL).send().unwrap();
 
     let mut resp_buf: Vec<u8> = vec![];
     resp.copy_to(&mut resp_buf)
         .expect("Копирование в буфер не удалось");
     let html_text = String::from_utf8(resp_buf).unwrap();
 
-    let cookie_raw = &resp.cookies().next().unwrap();
-    let cookie = cookie_raw.value();
+    //let cookie_raw = &resp.cookies().next().unwrap();
+    //let cookie = cookie_raw.value();
 
     fs::write(
         APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "logout.html",
@@ -169,8 +175,8 @@ pub unsafe extern "C" fn logout() {
     println!("ВЫШЕЛ--");
 }
 
-fn create_string_pointer(string_to_dart: &str) -> *const i8 {
-    let c_string = CString::new(string_to_dart).unwrap();
+pub fn create_string_pointer(string_to_ffi: &str) -> *const i8 {
+    let c_string = CString::new(string_to_ffi).unwrap();
     let pointer = c_string.as_ptr();
     std::mem::forget(c_string);
     pointer

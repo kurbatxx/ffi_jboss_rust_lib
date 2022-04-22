@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reqwest = { version = "0.11.4", features = [
+reqwest = { version = "0.11.10", features = [
     "blocking",
     "cookies",
     "native-tls",
@@ -19,4 +19,10 @@ serde_json = { version = "1.0.66" }
 serde = { version = "1.0.127", features = ["derive"] }
 
 [lib]
-crate-type = ["dylib"]
+crate-type = ["rlib", "dylib"]
+name = "jboss"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ffi_tester"
+path = "src/main.rs"
