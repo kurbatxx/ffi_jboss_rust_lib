@@ -108,18 +108,18 @@ pub unsafe extern "C" fn login(raw_username: *const i8, raw_password: *const i8)
     let mut resp_buf: Vec<u8> = vec![];
     resp.copy_to(&mut resp_buf)
         .expect("Копирование в буфер не удалось");
-    let html_text = String::from_utf8(resp_buf).unwrap();
+    let resp_text = String::from_utf8(resp_buf).unwrap();
 
     let cookie_raw = resp.cookies().next().unwrap();
     let cookie = cookie_raw.value();
 
     fs::write(
         APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "login.html",
-        &html_text,
+        &resp_text,
     )
     .expect("Unable to write file");
 
-    let doc_html = Document::from(html_text.as_str());
+    let doc_html = Document::from(resp_text.as_str());
     let auth_check = doc_html.find(Attr("id", "headerForm:sysuser")).next();
 
     let mut eror_message = "";
@@ -178,14 +178,14 @@ pub unsafe extern "C" fn logout() {
     let mut resp_buf: Vec<u8> = vec![];
     resp.copy_to(&mut resp_buf)
         .expect("Копирование в буфер не удалось");
-    let html_text = String::from_utf8(resp_buf).unwrap();
+    let resp_text = String::from_utf8(resp_buf).unwrap();
 
     //let cookie_raw = &resp.cookies().next().unwrap();
     //let cookie = cookie_raw.value();
 
     fs::write(
         APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "logout.html",
-        &html_text,
+        &resp_text,
     )
     .expect("Unable to write file");
     println!("ffi: ВЫШЕЛ");
