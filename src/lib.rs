@@ -3,11 +3,12 @@ extern crate reqwest;
 
 use select::node::Node;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Result};
+use serde_json::Result;
 
 use select::document::Document;
 use select::predicate::{Attr, Name, Predicate};
 
+use std::sync::RwLock;
 use std::{
     ffi::{CStr, CString},
     fs,
@@ -18,6 +19,7 @@ const AUTH_URL: &str = "https://bilim.integro.kz:8181/processor/back-office/j_se
 
 const JBOSS_FOLDER: &str = "jboss";
 static mut APPDIR: &str = "appdir";
+static mut LOGIN_COUNTER: i32 = 0;
 
 lazy_static::lazy_static! {
     static ref PARSER_CLIENT: reqwest::blocking::Client = reqwest::blocking::Client::builder()
@@ -27,15 +29,12 @@ lazy_static::lazy_static! {
         .danger_accept_invalid_certs(true)
         .build()
         .unwrap();
+
+    static ref COOKIE: RwLock<String> = RwLock::new("cookie".to_string());
 }
 
 static mut USERNAME: &str = "username";
 static mut PASSWORD: &str = "password";
-static mut COOKIE: &str = "cookie";
-
-pub fn test() {
-    println!("Test");
-}
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SchoolClient {
@@ -74,6 +73,13 @@ pub struct SearchResponse {
     clients: Vec<SchoolClient>,
     all_pages: i32,
     error: String,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct RegisterDeviceRequest {
+    client_id: i32,
+    rfid_id: i32,
+    device_id: i32,
 }
 
 #[no_mangle]
@@ -116,25 +122,35 @@ pub unsafe extern "C" fn login(raw_username: *const i8, raw_password: *const i8)
     let doc_html = Document::from(html_text.as_str());
     let auth_check = doc_html.find(Attr("id", "headerForm:sysuser")).next();
 
+    let mut eror_message = "";
     if auth_check != None {
-        println!("Вошел..");
+        println!("ffi: вошел");
+        LOGIN_COUNTER = 0;
 
-        let json = authorization_token_to_json(&AuthorizationToken {
-            cookie: cookie.to_string(),
-            error: "".to_string(),
-        })
-        .expect("Не удалось создать JSON");
+        let mut true_cookie = COOKIE.write().unwrap();
+        *true_cookie = cookie.to_string();
 
-        create_string_pointer(json.as_str())
+        USERNAME = username;
+        PASSWORD = password;
     } else {
-        println!("НЕ Вошел....");
-        let json = authorization_token_to_json(&AuthorizationToken {
-            cookie: cookie.to_string(),
-            error: "Неправильный логин или пароль".to_string(),
-        })
-        .expect("Не удалось создать JSON");
-        create_string_pointer(json.as_str())
+        println!("ffi: НЕ вошел");
+        LOGIN_COUNTER = LOGIN_COUNTER + 1;
+
+        eror_message = "Неправильный логин или пароль";
     }
+    let json = authorization_token_to_json(AuthorizationToken {
+        cookie: COOKIE.read().unwrap().to_string(),
+        error: eror_message.to_string(),
+    })
+    .expect("Не удалось создать JSON");
+
+    fs::write(
+        APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "login.json",
+        &json,
+    )
+    .expect("Unable to write file");
+
+    create_string_pointer(json.as_str())
 }
 
 #[no_mangle]
@@ -172,7 +188,7 @@ pub unsafe extern "C" fn logout() {
         &html_text,
     )
     .expect("Unable to write file");
-    println!("ВЫШЕЛ--");
+    println!("ffi: ВЫШЕЛ");
 }
 
 pub fn create_string_pointer(string_to_ffi: &str) -> *const i8 {
@@ -187,8 +203,8 @@ fn vector_clients_to_json(response: SearchResponse) -> Result<String> {
     Ok(json)
 }
 
-fn authorization_token_to_json(authorization_token: &AuthorizationToken) -> Result<String> {
-    let json = serde_json::to_string(authorization_token)?;
+fn authorization_token_to_json(authorization_token: AuthorizationToken) -> Result<String> {
+    let json = serde_json::to_string(&authorization_token)?;
     Ok(json)
 }
 
@@ -256,10 +272,18 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
         .form(&list_client_params)
         .send()
         .unwrap();
-    //fs::write("list.html", &resp.text().unwrap()).expect("Unable to write file");
 
-    let cookie_in = &resp.cookies().next().unwrap();
-    dbg!(&cookie_in.value());
+    let cookie = &resp.cookies().next().unwrap();
+    dbg!(&cookie.value());
+
+    if cookie.value().to_string() != COOKIE.read().unwrap().to_string() {
+        println!("ffi: Перелогиниваюсь");
+
+        let username = create_string_pointer(USERNAME);
+        let password = create_string_pointer(PASSWORD);
+        login(username, password);
+        search_person(raw_search_json);
+    }
 
     let search_param = [
         ("AJAXREQUEST", "j_id_jsp_659141934_0"),
@@ -272,7 +296,7 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
             "on",
         ),
         (
-            //Показвать удалённых
+            //Показывать удалённых
             "workspaceSubView:workspaceForm:workspacePageSubView:showDeletedClients",
             if show_delete { "on" } else { "" }, //"on",
         ),
@@ -325,6 +349,7 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_53pc51",
         ),
     ];
+
     let resp = PARSER_CLIENT
         .post(SITE_URL)
         .form(&search_param)
@@ -350,11 +375,9 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
         for page_index in 2..pages + 1 {
             select_current_page(pages, &mut result_vector, page_index)
         }
-    } else if current_page == 1 {
     } else if current_page == 2 || current_page <= current_page {
         result_vector = Vec::new();
         select_current_page(pages, &mut result_vector, current_page)
-    } else {
     }
 
     let search_response = SearchResponse {
@@ -370,11 +393,7 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
     )
     .expect("Unable to write file");
 
-    //Для FFI
-    let string_to_dart = CString::new(json).unwrap();
-    let pointer = string_to_dart.as_ptr();
-    std::mem::forget(string_to_dart);
-    pointer
+    create_string_pointer(&json)
 }
 
 fn select_current_page(pages: i32, result_vector: &mut Vec<SchoolClient>, page_index: i32) {
@@ -403,6 +422,235 @@ fn select_current_page(pages: i32, result_vector: &mut Vec<SchoolClient>, page_i
         // )
         // .expect("Unable to write file");
     }
+}
+
+#[no_mangle]
+///# Safety
+pub unsafe extern "C" fn register_device(raw_register_json: *const i8) -> *const i8 {
+    let register_json = CStr::from_ptr(raw_register_json).to_str().unwrap();
+    let register_request: RegisterDeviceRequest = serde_json::from_str(register_json).unwrap();
+    dbg!(register_request);
+
+    let cards_register_params = [
+        ("AJAXREQUEST", "j_id_jsp_659141934_0"),
+        (
+            "mainMenuSubView:mainMenuForm:mainMenuselectedItemName",
+            "createCardMenuItem",
+        ),
+        (
+            "panelMenuStatemainMenuSubView:mainMenuForm:cardGroupMenu",
+            "opened",
+        ),
+        (
+            "panelMenuActionmainMenuSubView:mainMenuForm:createCardMenuItem",
+            "mainMenuSubView:mainMenuForm:createCardMenuItem",
+        ),
+        (
+            "mainMenuSubView:mainMenuForm",
+            "mainMenuSubView:mainMenuForm",
+        ),
+        ("autoScroll", ""),
+        ("javax.faces.ViewState", "j_id1"),
+        (
+            "mainMenuSubView:mainMenuForm:createCardMenuItem",
+            "mainMenuSubView:mainMenuForm:createCardMenuItem",
+        ),
+    ];
+
+    let resp = PARSER_CLIENT
+        .post(SITE_URL)
+        .form(&cards_register_params)
+        .send()
+        .unwrap();
+
+    let resp_text = &resp.text().unwrap();
+
+    fs::write(
+        APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "cards.html",
+        &resp_text,
+    )
+    .expect("Unable to write file");
+
+    let client_select_param = [
+        ("AJAXREQUEST", "j_id_jsp_659141934_0"),
+        (
+            "workspaceSubView:workspaceForm",
+            "workspaceSubView:workspaceForm",
+        ),
+        (
+            "clientSelectSubView:modalClientSelectorForm",
+            "clientSelectSubView:modalClientSelectorForm",
+        ),
+        ("autoScroll", ""),
+        ("javax.faces.ViewState", "j_id1"),
+        (
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_4pc51",
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_4pc51",
+        ),
+    ];
+
+    let resp = PARSER_CLIENT
+        .post(SITE_URL)
+        .form(&client_select_param)
+        .send()
+        .unwrap();
+
+    let resp_text = &resp.text().unwrap();
+
+    fs::write(
+        APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "cards_select_client.html",
+        &resp_text,
+    )
+    .expect("Unable to write file");
+
+    let filter_param = [
+        ("AJAXREQUEST", "j_id_jsp_659141934_0"),
+        (
+            "clientSelectSubView:modalClientSelectorForm:modalClientSelectorFilterPanel",
+            "true",
+        ),
+        (
+            "clientSelectSubView:modalClientSelectorForm:j_id_jsp_1535611719_13pc27",
+            "85800142",
+        ),
+        (
+            "clientSelectSubView:modalClientSelectorForm",
+            "clientSelectSubView:modalClientSelectorForm",
+        ),
+        ("autoScroll", ""),
+        ("javax.faces.ViewState", "j_id1"),
+        (
+            "clientSelectSubView:modalClientSelectorForm:j_id_jsp_1535611719_21pc27",
+            "clientSelectSubView:modalClientSelectorForm:j_id_jsp_1535611719_21pc27",
+        ),
+    ];
+
+    let resp = PARSER_CLIENT
+        .post(SITE_URL)
+        .form(&filter_param)
+        .send()
+        .unwrap();
+
+    let resp_text = &resp.text().unwrap();
+
+    fs::write(
+        APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "filter.html",
+        &resp_text,
+    )
+    .expect("Unable to write file");
+
+    let select_first_client = [
+        ("AJAXREQUEST", "j_id_jsp_659141934_0"),
+        (
+            "clientSelectSubView:modalClientSelectorForm:modalClientSelectorFilterPanel",
+            "true",
+        ),
+        (
+            "clientSelectSubView:modalClientSelectorForm:j_id_jsp_1535611719_13pc27",
+            "85800142",
+        ),
+        (
+            "clientSelectSubView:modalClientSelectorForm",
+            "clientSelectSubView:modalClientSelectorForm",
+        ),
+        ("autoScroll", ""),
+        ("javax.faces.ViewState", "j_id1"),
+        (
+            "clientSelectSubView:modalClientSelectorForm:modalClientSelectorTable:0:j_id_jsp_1535611719_24pc27",
+            "clientSelectSubView:modalClientSelectorForm:modalClientSelectorTable:0:j_id_jsp_1535611719_24pc27",
+        ),
+    ];
+
+    let resp = PARSER_CLIENT
+        .post(SITE_URL)
+        .form(&select_first_client)
+        .send()
+        .unwrap();
+
+    let resp_text = &resp.text().unwrap();
+
+    fs::write(
+        APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "select_first_client.html",
+        &resp_text,
+    )
+    .expect("Unable to write file");
+
+    let sumbit_client = [
+        ("AJAXREQUEST", "j_id_jsp_659141934_0"),
+        (
+            "clientSelectSubView:modalClientSelectorForm",
+            "clientSelectSubView:modalClientSelectorForm",
+        ),
+        ("autoScroll", ""),
+        ("javax.faces.ViewState", "j_id1"),
+        (
+            "clientSelectSubView:modalClientSelectorForm:j_id_jsp_1535611719_41pc27",
+            "clientSelectSubView:modalClientSelectorForm:j_id_jsp_1535611719_41pc27",
+        ),
+    ];
+
+    let resp = PARSER_CLIENT
+        .post(SITE_URL)
+        .form(&sumbit_client)
+        .send()
+        .unwrap();
+
+    let resp_text = &resp.text().unwrap();
+
+    fs::write(
+        APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "sumbit_client.html",
+        &resp_text,
+    )
+    .expect("Unable to write file");
+
+    //// Регистрация карты
+    let sumbit_client = [
+        ("AJAXREQUEST", "j_id_jsp_659141934_0"),
+        (
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_6pc51",
+            "3080791898",
+        ),
+        (
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_8pc51",
+            "85800142",
+        ),
+        (
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_10pc51",
+            "1",
+        ),
+        ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_13pc51InputDate", "26.04.2022"),
+        ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_13pc51InputCurrentDate", "04/2022"),
+        ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_15pc51InputDate", "26.04.2032"),
+        ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_15pc51InputCurrentDate", "04/2032"),
+        ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_17pc51", "0"),
+        ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_20pc51", "1"),
+        (
+            "workspaceSubView:workspaceForm",
+            "workspaceSubView:workspaceForm",
+        ),
+        ("autoScroll", ""),
+        ("javax.faces.ViewState", "j_id1"),
+        (
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_23pc51",
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_23pc51",
+        ),
+    ];
+
+    let resp = PARSER_CLIENT
+        .post(SITE_URL)
+        .form(&sumbit_client)
+        .send()
+        .unwrap();
+
+    let resp_text = &resp.text().unwrap();
+
+    fs::write(
+        APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "final_register_card.html",
+        &resp_text,
+    )
+    .expect("Unable to write file");
+
+    create_string_pointer("Заглушка")
 }
 
 fn get_person_data(resp_text: &str) -> Vec<SchoolClient> {
