@@ -647,7 +647,7 @@ pub unsafe extern "C" fn register_device(raw_register_json: *const i8) -> *const
         println!("{}", message);
 
         let register: bool;
-        let result_message: &str;
+        let mut result_message: &str;
         match message {
             "Карта зарегистрирована успешно" => {
                 result_message = "Устройство зарегистрировано";
@@ -662,6 +662,22 @@ pub unsafe extern "C" fn register_device(raw_register_json: *const i8) -> *const
             _ => {
                 result_message = "Неизвестная ошибка";
                 register = false;
+            }
+        }
+
+        let res_msg = format!(
+            "Устройство {} уже зарегистрировано",
+            register_request.rfid_id.to_string()
+        );
+
+        if !register {
+            let card_error_message = format!(
+                "Ошибка при регистрации карты: Карта {} уже зарегистрирована",
+                register_request.rfid_id.to_string()
+            );
+
+            if card_error_message == message {
+                result_message = res_msg.as_str();
             }
         }
 
