@@ -1,12 +1,14 @@
 extern crate lazy_static;
 extern crate reqwest;
 
+use chrono::{self, Duration};
+
 use select::node::Node;
 use serde::{Deserialize, Serialize};
 use serde_json::Result;
 
 use select::document::Document;
-use select::predicate::{Attr, Name, Predicate};
+use select::predicate::{Attr, Class, Name, Predicate};
 
 use std::sync::RwLock;
 use std::{
@@ -75,11 +77,24 @@ pub struct SearchResponse {
     error: String,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Copy)]
 pub struct RegisterDeviceRequest {
-    client_id: i32,
-    rfid_id: i32,
-    device_id: i32,
+    client_id: u32,
+    rfid_id: u32,
+    device_id: u32,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct RegisterDeviceResponce {
+    original_message: String,
+    result_message: String,
+    client: String,
+    register: bool,
+}
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct SelectedClient {
+    selected: bool,
+    name: String,
 }
 
 #[no_mangle]
@@ -189,45 +204,6 @@ pub unsafe extern "C" fn logout() {
     )
     .expect("Unable to write file");
     println!("ffi: ВЫШЕЛ");
-}
-
-pub fn create_string_pointer(string_to_ffi: &str) -> *const i8 {
-    let c_string = CString::new(string_to_ffi).unwrap();
-    let pointer = c_string.as_ptr();
-    std::mem::forget(c_string);
-    pointer
-}
-
-fn vector_clients_to_json(response: SearchResponse) -> Result<String> {
-    let json = serde_json::to_string(&response)?;
-    Ok(json)
-}
-
-fn authorization_token_to_json(authorization_token: AuthorizationToken) -> Result<String> {
-    let json = serde_json::to_string(&authorization_token)?;
-    Ok(json)
-}
-
-fn client_amount(html_search_result: select::document::Document) -> i32 {
-    let mut client_amout = html_search_result.find(Attr(
-        "id",
-        "workspaceSubView:workspaceForm:workspaceTogglePanel_header",
-    ));
-
-    let all_text = client_amout.next().unwrap().inner_html();
-    let digit_text: String = all_text.chars().filter(|c| c.is_digit(10)).collect();
-    dbg!(&digit_text);
-    digit_text.parse::<i32>().unwrap()
-}
-
-fn calculate_pages(client_amount: i32) -> i32 {
-    if client_amount == 0 {
-        0
-    } else if client_amount % 20 == 0 {
-        client_amount / 20
-    } else {
-        client_amount / 20 + 1
-    }
 }
 
 #[no_mangle]
@@ -511,7 +487,7 @@ pub unsafe extern "C" fn register_device(raw_register_json: *const i8) -> *const
         ),
         (
             "clientSelectSubView:modalClientSelectorForm:j_id_jsp_1535611719_13pc27",
-            "85800142",
+            &register_request.client_id.to_string()[..],
         ),
         (
             "clientSelectSubView:modalClientSelectorForm",
@@ -547,7 +523,7 @@ pub unsafe extern "C" fn register_device(raw_register_json: *const i8) -> *const
         ),
         (
             "clientSelectSubView:modalClientSelectorForm:j_id_jsp_1535611719_13pc27",
-            "85800142",
+            &register_request.client_id.to_string()[..],
         ),
         (
             "clientSelectSubView:modalClientSelectorForm",
@@ -574,6 +550,8 @@ pub unsafe extern "C" fn register_device(raw_register_json: *const i8) -> *const
         &resp_text,
     )
     .expect("Unable to write file");
+
+    let select_client = get_select_name(resp_text);
 
     let sumbit_client = [
         ("AJAXREQUEST", "j_id_jsp_659141934_0"),
@@ -604,24 +582,36 @@ pub unsafe extern "C" fn register_device(raw_register_json: *const i8) -> *const
     .expect("Unable to write file");
 
     //// Регистрация карты
+    let now = chrono::offset::Local::now();
+    let now10year = now + Duration::days(365 * 10);
+
+    let now_full = now.format("%d.%m.%Y").to_string();
+    let now_split = now.format("%m/%Y").to_string();
+
+    let now10year_full = now10year.format("%d.%m.%Y").to_string();
+    let now10year_split = now10year.format("%m/%Y").to_string();
+
+    println!("UTC now in a custom format is: {}", now_full);
+    println!("UTC now in a custom format is: {}", now_split);
+
     let sumbit_client = [
         ("AJAXREQUEST", "j_id_jsp_659141934_0"),
         (
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_6pc51",
-            "3080791898",
+            &register_request.rfid_id.to_string()[..],
         ),
         (
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_8pc51",
-            "85800142",
+            &register_request.client_id.to_string()[..],
         ),
         (
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_10pc51",
-            "1",
+            &register_request.device_id.to_string()[..],
         ),
-        ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_13pc51InputDate", "26.04.2022"),
-        ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_13pc51InputCurrentDate", "04/2022"),
-        ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_15pc51InputDate", "26.04.2032"),
-        ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_15pc51InputCurrentDate", "04/2032"),
+        ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_13pc51InputDate", now_full.as_str()),
+        ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_13pc51InputCurrentDate", now_split.as_str()),
+        ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_15pc51InputDate", now10year_full.as_str()),
+        ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_15pc51InputCurrentDate", now10year_split.as_str()),
         ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_17pc51", "0"),
         ("workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_202606668_20pc51", "1"),
         (
@@ -636,21 +626,94 @@ pub unsafe extern "C" fn register_device(raw_register_json: *const i8) -> *const
         ),
     ];
 
-    let resp = PARSER_CLIENT
-        .post(SITE_URL)
-        .form(&sumbit_client)
-        .send()
-        .unwrap();
+    let register_card_json: String;
+    if select_client.selected {
+        let resp = PARSER_CLIENT
+            .post(SITE_URL)
+            .form(&sumbit_client)
+            .send()
+            .unwrap();
 
-    let resp_text = &resp.text().unwrap();
+        let resp_text = &resp.text().unwrap();
+
+        fs::write(
+            APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "final_register_card.html",
+            &resp_text,
+        )
+        .expect("Unable to write file");
+
+        let message = get_register_message(resp_text);
+        let message = message.as_str();
+        println!("{}", message);
+
+        let register: bool;
+        let result_message: &str;
+        match message {
+            "Карта зарегистрирована успешно" => {
+                result_message = "Устройство зарегистрировано";
+                register = true;
+            }
+            "Ошибка при регистрации карты: Данный клиент имеет незаблокированную(ые) карту(ы)." =>
+            {
+                result_message = "У пользователя есть незаблокированное устройство";
+                register = false;
+            }
+
+            _ => {
+                result_message = "Неизвестная ошибка";
+                register = false;
+            }
+        }
+
+        register_card_json = register_device_to_json(RegisterDeviceResponce {
+            original_message: message.to_string(),
+            result_message: result_message.to_string(),
+            client: select_client.name,
+            register: register,
+        })
+        .expect("Не удалось создать json");
+    } else {
+        register_card_json = register_device_to_json(RegisterDeviceResponce {
+            original_message: "".to_string(),
+            result_message: "Не выбран пользователь".to_string(),
+            client: "".to_string(),
+            register: false,
+        })
+        .expect("Не удалось создать json");
+    }
 
     fs::write(
-        APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "final_register_card.html",
-        &resp_text,
+        APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "register_card_json.json",
+        &register_card_json,
     )
     .expect("Unable to write file");
 
-    create_string_pointer("Заглушка")
+    create_string_pointer(&register_card_json)
+}
+
+fn get_select_name(resp_text: &str) -> SelectedClient {
+    let document = Document::from(resp_text);
+    let node = document
+        .find(Class("borderless-grid").descendant(Name("input")))
+        .take(1);
+
+    let mut select_name = "".to_string();
+    let mut selected = false;
+
+    for i in node {
+        select_name = i.attr("value").unwrap().to_string();
+        selected = true;
+    }
+    SelectedClient {
+        selected: selected,
+        name: select_name,
+    }
+}
+
+fn get_register_message(resp_text: &str) -> String {
+    let document = Document::from(resp_text);
+    let mut node = document.find(Class("rich-messages-label")).take(1);
+    node.next().unwrap().text()
 }
 
 fn get_person_data(resp_text: &str) -> Vec<SchoolClient> {
@@ -706,5 +769,49 @@ fn get_fio(fio: String) -> FullName {
         surname: chunks[0].to_string(),
         name: chunks[1].to_string(),
         patronymic: chunks[2].to_string(),
+    }
+}
+
+pub fn create_string_pointer(string_to_ffi: &str) -> *const i8 {
+    let c_string = CString::new(string_to_ffi).unwrap();
+    let pointer = c_string.as_ptr();
+    std::mem::forget(c_string);
+    pointer
+}
+
+fn vector_clients_to_json(response: SearchResponse) -> Result<String> {
+    let json = serde_json::to_string(&response)?;
+    Ok(json)
+}
+
+fn authorization_token_to_json(authorization_token: AuthorizationToken) -> Result<String> {
+    let json = serde_json::to_string(&authorization_token)?;
+    Ok(json)
+}
+
+fn register_device_to_json(register_device_responce: RegisterDeviceResponce) -> Result<String> {
+    let json = serde_json::to_string(&register_device_responce)?;
+    Ok(json)
+}
+
+fn client_amount(html_search_result: select::document::Document) -> i32 {
+    let mut client_amout = html_search_result.find(Attr(
+        "id",
+        "workspaceSubView:workspaceForm:workspaceTogglePanel_header",
+    ));
+
+    let all_text = client_amout.next().unwrap().inner_html();
+    let digit_text: String = all_text.chars().filter(|c| c.is_digit(10)).collect();
+    dbg!(&digit_text);
+    digit_text.parse::<i32>().unwrap()
+}
+
+fn calculate_pages(client_amount: i32) -> i32 {
+    if client_amount == 0 {
+        0
+    } else if client_amount % 20 == 0 {
+        client_amount / 20
+    } else {
+        client_amount / 20 + 1
     }
 }
