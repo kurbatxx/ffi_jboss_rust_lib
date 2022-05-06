@@ -36,15 +36,21 @@ lazy_static::lazy_static! {
 
 }
 
-static mut LOGIN_DATA: LoginData = LoginData {
+static mut LOGIN_DATA: LoginRequest = LoginRequest {
     login: "login",
     password: "password",
 };
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
-pub struct LoginData<'a> {
+pub struct LoginRequest<'a> {
     login: &'a str,
     password: &'a str,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct LoginResponse {
+    cookie: String,
+    error: String,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -61,12 +67,6 @@ pub struct FullName {
     name: String,
     surname: String,
     patronymic: String,
-}
-
-#[derive(Debug, Default, Serialize)]
-pub struct AuthorizationToken {
-    cookie: String,
-    error: String,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -120,7 +120,7 @@ pub unsafe extern "C" fn login(raw_login_data: *const i8) -> *const i8 {
     let raw_login_data = CStr::from_ptr(raw_login_data).to_str().unwrap();
     println!("{}", raw_login_data);
 
-    let login_data: LoginData = serde_json::from_str(&raw_login_data).unwrap();
+    let login_data: LoginRequest = serde_json::from_str(&raw_login_data).unwrap();
 
     let _ = PARSER_CLIENT.get(SITE_URL).send().unwrap();
 
@@ -166,7 +166,7 @@ pub unsafe extern "C" fn login(raw_login_data: *const i8) -> *const i8 {
 
         eror_message = "Неправильный логин или пароль";
     }
-    let json = authorization_token_to_json(AuthorizationToken {
+    let json = authorization_token_to_json(LoginResponse {
         cookie: COOKIE.read().unwrap().to_string(),
         error: eror_message.to_string(),
     })
@@ -827,7 +827,7 @@ fn vector_clients_to_json(response: SearchResponse) -> Result<String> {
     Ok(json)
 }
 
-fn authorization_token_to_json(authorization_token: AuthorizationToken) -> Result<String> {
+fn authorization_token_to_json(authorization_token: LoginResponse) -> Result<String> {
     let json = serde_json::to_string(&authorization_token)?;
     Ok(json)
 }
