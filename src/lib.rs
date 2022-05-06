@@ -37,13 +37,13 @@ lazy_static::lazy_static! {
 }
 
 static mut LOGIN_DATA: LoginData = LoginData {
-    username: "login",
+    login: "login",
     password: "password",
 };
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct LoginData<'a> {
-    username: &'a str,
+    login: &'a str,
     password: &'a str,
 }
 
@@ -118,12 +118,14 @@ pub unsafe extern "C" fn initial(raw_appdir: *const i8) {
 ///# Safety
 pub unsafe extern "C" fn login(raw_login_data: *const i8) -> *const i8 {
     let raw_login_data = CStr::from_ptr(raw_login_data).to_str().unwrap();
+    println!("{}", raw_login_data);
+
     let login_data: LoginData = serde_json::from_str(&raw_login_data).unwrap();
 
     let _ = PARSER_CLIENT.get(SITE_URL).send().unwrap();
 
     let auth_params = [
-        ("j_username", &login_data.username),
+        ("j_username", &login_data.login),
         ("j_password", &login_data.password),
     ];
     let mut resp = PARSER_CLIENT

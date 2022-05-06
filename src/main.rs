@@ -7,7 +7,7 @@ fn main() {
         .expect("Не удалось пребразовать каталог в строку");
     let raw_appdir = create_string_pointer(curdir_str);
 
-    let raw_login_data = create_string_pointer("{\"username\": \"_\", \"password\": \"_\"}");
+    let raw_login_data = create_string_pointer("{\"login\": \"_\", \"password\": \"_\"}");
 
     let raw_register_json = create_string_pointer(
         "{\"client_id\": 85800142, \"rfid_id\": 2602314315, \"device_id\": 1}",
