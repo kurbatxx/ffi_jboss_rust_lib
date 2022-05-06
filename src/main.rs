@@ -7,16 +7,15 @@ fn main() {
         .expect("Не удалось пребразовать каталог в строку");
     let raw_appdir = create_string_pointer(curdir_str);
 
-    let raw_username = create_string_pointer("");
-    let raw_password = create_string_pointer("");
+    let raw_login_data = create_string_pointer("{\"username\": \"_\", \"password\": \"_\"}");
 
     let raw_register_json = create_string_pointer(
-        "{\"client_id\": 85800142, \"rfid_id\": 1735547725, \"device_id\": 1}",
+        "{\"client_id\": 85800142, \"rfid_id\": 2602314315, \"device_id\": 1}",
     );
 
     unsafe {
         initial(raw_appdir);
-        login(raw_username, raw_password);
+        login(raw_login_data);
         register_device(raw_register_json);
     }
 }

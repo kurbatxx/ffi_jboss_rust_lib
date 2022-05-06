@@ -33,10 +33,19 @@ lazy_static::lazy_static! {
         .unwrap();
 
     static ref COOKIE: RwLock<String> = RwLock::new("cookie".to_string());
+
 }
 
-static mut USERNAME: &str = "username";
-static mut PASSWORD: &str = "password";
+static mut LOGIN_DATA: LoginData = LoginData {
+    username: "login",
+    password: "password",
+};
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct LoginData<'a> {
+    username: &'a str,
+    password: &'a str,
+}
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SchoolClient {
@@ -107,13 +116,16 @@ pub unsafe extern "C" fn initial(raw_appdir: *const i8) {
 
 #[no_mangle]
 ///# Safety
-pub unsafe extern "C" fn login(raw_username: *const i8, raw_password: *const i8) -> *const i8 {
-    let username = CStr::from_ptr(raw_username).to_str().unwrap();
-    let password = CStr::from_ptr(raw_password).to_str().unwrap();
+pub unsafe extern "C" fn login(raw_login_data: *const i8) -> *const i8 {
+    let raw_login_data = CStr::from_ptr(raw_login_data).to_str().unwrap();
+    let login_data: LoginData = serde_json::from_str(&raw_login_data).unwrap();
 
     let _ = PARSER_CLIENT.get(SITE_URL).send().unwrap();
 
-    let auth_params = [("j_username", username), ("j_password", password)];
+    let auth_params = [
+        ("j_username", &login_data.username),
+        ("j_password", &login_data.password),
+    ];
     let mut resp = PARSER_CLIENT
         .post(AUTH_URL)
         .form(&auth_params)
@@ -125,7 +137,7 @@ pub unsafe extern "C" fn login(raw_username: *const i8, raw_password: *const i8)
         .expect("Копирование в буфер не удалось");
     let resp_text = String::from_utf8(resp_buf).unwrap();
 
-    let cookie_raw = resp.cookies().next().unwrap();
+    let cookie_raw = &resp.cookies().next().unwrap();
     let cookie = cookie_raw.value();
 
     fs::write(
@@ -145,8 +157,7 @@ pub unsafe extern "C" fn login(raw_username: *const i8, raw_password: *const i8)
         let mut true_cookie = COOKIE.write().unwrap();
         *true_cookie = cookie.to_string();
 
-        USERNAME = username;
-        PASSWORD = password;
+        LOGIN_DATA = login_data;
     } else {
         println!("ffi: НЕ вошел");
         LOGIN_COUNTER = LOGIN_COUNTER + 1;
@@ -255,9 +266,10 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
     if cookie.value().to_string() != COOKIE.read().unwrap().to_string() {
         println!("ffi: Перелогиниваюсь");
 
-        let username = create_string_pointer(USERNAME);
-        let password = create_string_pointer(PASSWORD);
-        login(username, password);
+        let login_data_json_string = serde_json::to_string(&LOGIN_DATA).unwrap();
+        let raw_login_data = create_string_pointer(login_data_json_string.as_str());
+
+        login(raw_login_data);
         search_person(raw_search_json);
     }
 
@@ -438,6 +450,19 @@ pub unsafe extern "C" fn register_device(raw_register_json: *const i8) -> *const
         .form(&cards_register_params)
         .send()
         .unwrap();
+
+    let cookie = &resp.cookies().next().unwrap();
+    dbg!(&cookie.value());
+
+    if cookie.value().to_string() != COOKIE.read().unwrap().to_string() {
+        println!("ffi: Перелогиниваюсь");
+
+        let login_data_json_string = serde_json::to_string(&LOGIN_DATA).unwrap();
+        let raw_login_data = create_string_pointer(login_data_json_string.as_str());
+
+        login(raw_login_data);
+        search_person(raw_register_json);
+    }
 
     let resp_text = &resp.text().unwrap();
 
