@@ -27,3 +27,9 @@ path = "src/lib/lib.rs"
 [[bin]]
 name = "ffi_tester"
 path = "src/main.rs"
+
+[profile.release]
+strip = true
+lto = true
+panic = "abort"
+codegen-units = 1
