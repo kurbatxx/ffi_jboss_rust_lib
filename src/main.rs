@@ -1,4 +1,4 @@
-use jboss::{create_string_pointer, initial, login, register_device};
+use jboss::{create_string_pointer, initial::initial, login::login, register_device::register_device};
 
 fn main() {
     let curdir = std::env::current_dir().expect("Не удалось получить директорию запуска программы");

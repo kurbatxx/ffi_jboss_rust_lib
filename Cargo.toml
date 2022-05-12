@@ -22,7 +22,7 @@ serde = { version = "1.0.127", features = ["derive"] }
 [lib]
 crate-type = ["rlib", "dylib"]
 name = "jboss"
-path = "src/lib.rs"
+path = "src/lib/lib.rs"
 
 [[bin]]
 name = "ffi_tester"
