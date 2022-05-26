@@ -1,6 +1,5 @@
 use crate::{
-    create_string_pointer, login, register_device, APPDIR, COOKIE, JBOSS_FOLDER, LOGIN_DATA,
-    PARSER_CLIENT, SITE_URL,
+    create_string_pointer, login, APPDIR, COOKIE, JBOSS_FOLDER, LOGIN_DATA, PARSER_CLIENT, SITE_URL,
 };
 
 use chrono::{self, Duration};
@@ -82,7 +81,7 @@ pub unsafe extern "C" fn register_device(raw_register_json: *const i8) -> *const
         let raw_login_data = create_string_pointer(login_data_json_string.as_str());
 
         login::login(raw_login_data);
-        register_device::register_device(raw_register_json);
+        return register_device(raw_register_json);
     }
 
     let resp_text = &resp.text().unwrap();
