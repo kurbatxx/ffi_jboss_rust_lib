@@ -14,25 +14,23 @@ use crate::{
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SearchRequest {
-    id: i32,
-    request: String,
+    search_string: String,
     school_id: i32,
-    cards: i32,
-    page: i32,
-    show_delete: bool,
+    page_number: i32,
+    show_deleted: bool,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SearchResponse {
     clients: Vec<SchoolClient>,
-    all_pages: i32,
+    max_page: i32,
     error: String,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SchoolClient {
     id: String,
-    fullname: FullName,
+    full_name: FullName,
     group: String,
     school: String,
     balance: String,
@@ -50,11 +48,11 @@ pub struct FullName {
 pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 {
     let search_json = CStr::from_ptr(raw_search_json).to_str().unwrap();
     let search_request: SearchRequest = serde_json::from_str(search_json).unwrap();
-    println!("{}", search_request.request);
+    println!("{}", search_request.search_string);
 
-    let fio = search_request.request.as_str();
+    let fio = search_request.search_string.as_str();
     let fullname = get_fio(fio.to_string());
-    let show_delete = search_request.show_delete;
+    let show_delete = search_request.show_deleted;
 
     let list_client_params = [
         ("AJAXREQUEST", "j_id_jsp_659141934_0"),
@@ -145,7 +143,8 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
             //1 есть карты
             //2 нет карт
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_43pc51",
-            &search_request.cards.to_string(),
+            //&search_request.cards.to_string(),
+            "0",
         ),
         (
             "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_46pc51",
@@ -181,24 +180,24 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
 
     let html_search_result = Document::from(resp_text.as_str());
     let client_amount = client_amount(html_search_result);
-    let pages: i32 = calculate_pages(client_amount);
-    println!("Всего {} страниц", pages);
+    let max_page: i32 = calculate_max_page(client_amount);
+    println!("Всего {} страниц", max_page);
 
     let mut result_vector = get_person_data(resp_text);
-    let current_page = search_request.page;
+    let current_page = search_request.page_number;
 
     if current_page == 0 {
-        for page_index in 2..pages + 1 {
-            select_current_page(pages, &mut result_vector, page_index)
+        for page_index in 2..max_page + 1 {
+            select_current_page(max_page, &mut result_vector, page_index)
         }
     } else if current_page == 2 || current_page <= current_page {
         result_vector = Vec::new();
-        select_current_page(pages, &mut result_vector, current_page)
+        select_current_page(max_page, &mut result_vector, current_page)
     }
 
     let search_response = SearchResponse {
         clients: result_vector,
-        all_pages: pages,
+        max_page,
         error: "".parse().unwrap(),
     };
 
@@ -255,7 +254,7 @@ fn get_person_data(resp_text: &str) -> Vec<SchoolClient> {
 
         let client = SchoolClient {
             id: cells[1].text(),
-            fullname: fullname,
+            full_name: fullname,
             group: cells[4].text(),
             school: cells[6].text(),
             //delete 3 symbols ",00"
@@ -313,7 +312,7 @@ fn client_amount(html_search_result: select::document::Document) -> i32 {
     digit_text.parse::<i32>().unwrap()
 }
 
-fn calculate_pages(client_amount: i32) -> i32 {
+fn calculate_max_page(client_amount: i32) -> i32 {
     if client_amount == 0 {
         0
     } else if client_amount % 20 == 0 {
