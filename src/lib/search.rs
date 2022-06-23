@@ -50,6 +50,7 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
     let search_request: SearchRequest = serde_json::from_str(search_json).unwrap();
     println!("{}", search_request.search_string);
 
+    let id = search_request.search_string.parse::<u32>().unwrap_or(0);
     let fio = search_request.search_string.as_str();
     let fullname = get_fio(fio.to_string());
     let show_delete = search_request.show_deleted;
@@ -99,71 +100,142 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
         search_person(raw_search_json);
     }
 
-    let search_param = [
-        ("AJAXREQUEST", "j_id_jsp_659141934_0"),
-        (
-            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_1pc51",
-            "true",
-        ),
-        (
-            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_8pc51",
-            "on",
-        ),
-        (
-            //Показывать удалённых
-            "workspaceSubView:workspaceForm:workspacePageSubView:showDeletedClients",
-            if show_delete { "on" } else { "" }, //"on",
-        ),
-        (
-            //ID
-            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_12pc51",
-            "",
-        ),
-        (
-            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_18pc51",
-            "-1",
-        ),
-        (
-            //Фамилия
-            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_26pc51",
-            fullname.surname.as_str(),
-        ),
-        (
-            //Имя
-            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_30pc51",
-            fullname.name.as_str(),
-        ),
-        (
-            //Отчество
-            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_34pc51",
-            fullname.patronymic.as_str(),
-        ),
-        (
-            //0 не важно наличе карт
-            //1 есть карты
-            //2 нет карт
-            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_43pc51",
-            //&search_request.cards.to_string(),
-            "0",
-        ),
-        (
-            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_46pc51",
-            "0",
-        ),
-        (
-            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_108pc51",
-            "j_id_jsp_635818149_109pc51",
-        ),
-        (
-            "workspaceSubView:workspaceForm",
-            "workspaceSubView:workspaceForm",
-        ),
-        ("javax.faces.ViewState", "j_id1"),
-        (
-            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_53pc51",
-            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_53pc51",
-        ),
-    ];
+    let search_param;
+
+    let id_param = id.to_string();
+    if id == 0 {
+        search_param = [
+            ("AJAXREQUEST", "j_id_jsp_659141934_0"),
+            (
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_1pc51",
+                "true",
+            ),
+            (
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_8pc51",
+                "on",
+            ),
+            (
+                //Показывать удалённых
+                "workspaceSubView:workspaceForm:workspacePageSubView:showDeletedClients",
+                if show_delete { "on" } else { "" }, //"on",
+            ),
+            (
+                //ID
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_12pc51",
+                "",
+            ),
+            (
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_18pc51",
+                "-1",
+            ),
+            (
+                //Фамилия
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_26pc51",
+                fullname.surname.as_str(),
+            ),
+            (
+                //Имя
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_30pc51",
+                fullname.name.as_str(),
+            ),
+            (
+                //Отчество
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_34pc51",
+                fullname.patronymic.as_str(),
+            ),
+            (
+                //0 не важно наличе карт
+                //1 есть карты
+                //2 нет карт
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_43pc51",
+                //&search_request.cards.to_string(),
+                "0",
+            ),
+            (
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_46pc51",
+                "0",
+            ),
+            (
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_108pc51",
+                "j_id_jsp_635818149_109pc51",
+            ),
+            (
+                "workspaceSubView:workspaceForm",
+                "workspaceSubView:workspaceForm",
+            ),
+            ("javax.faces.ViewState", "j_id1"),
+            (
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_53pc51",
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_53pc51",
+            ),
+        ];
+    } else {
+        search_param = [
+            ("AJAXREQUEST", "j_id_jsp_659141934_0"),
+            (
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_1pc51",
+                "true",
+            ),
+            (
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_8pc51",
+                "on",
+            ),
+            (
+                //Показывать удалённых
+                "workspaceSubView:workspaceForm:workspacePageSubView:showDeletedClients",
+                "on", //"on",
+            ),
+            (
+                //ID
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_12pc51",
+                &id_param,
+            ),
+            (
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_18pc51",
+                "-1",
+            ),
+            (
+                //Фамилия
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_26pc51",
+                "",
+            ),
+            (
+                //Имя
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_30pc51",
+                "",
+            ),
+            (
+                //Отчество
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_34pc51",
+                "",
+            ),
+            (
+                //0 не важно наличе карт
+                //1 есть карты
+                //2 нет карт
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_43pc51",
+                //&search_request.cards.to_string(),
+                "0",
+            ),
+            (
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_46pc51",
+                "0",
+            ),
+            (
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_108pc51",
+                "j_id_jsp_635818149_109pc51",
+            ),
+            (
+                "workspaceSubView:workspaceForm",
+                "workspaceSubView:workspaceForm",
+            ),
+            ("javax.faces.ViewState", "j_id1"),
+            (
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_53pc51",
+                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_53pc51",
+            ),
+        ];
+    }
 
     let resp = PARSER_CLIENT
         .post(SITE_URL)
