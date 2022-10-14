@@ -29,9 +29,6 @@ pub unsafe extern "C" fn logout() {
         .expect("Копирование в буфер не удалось");
     let resp_text = String::from_utf8(resp_buf).unwrap();
 
-    //let cookie_raw = &resp.cookies().next().unwrap();
-    //let cookie = cookie_raw.value();
-
     fs::write(
         APPDIR.to_owned() + "/" + JBOSS_FOLDER + "/" + "logout.html",
         &resp_text,

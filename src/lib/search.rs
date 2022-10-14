@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Result;
 
 use crate::{
-    create_string_pointer, login, APPDIR, COOKIE, JBOSS_FOLDER, LOGIN_DATA, PARSER_CLIENT, SITE_URL,
+    create_string_pointer, login, select_person::CardStatus, APPDIR, COOKIE, JBOSS_FOLDER,
+    LOGIN_DATA, PARSER_CLIENT, SITE_URL,
 };
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -29,18 +30,19 @@ pub struct SearchResponse {
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SchoolClient {
-    id: String,
-    full_name: FullName,
-    group: String,
-    school: String,
-    balance: String,
+    pub id: String,
+    pub full_name: FullName,
+    pub group: String,
+    pub school: String,
+    pub balance: String,
+    pub cards: Vec<CardStatus>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct FullName {
-    name: String,
-    surname: String,
-    patronymic: String,
+    pub name: String,
+    pub surname: String,
+    pub patronymic: String,
 }
 
 #[no_mangle]
@@ -100,142 +102,72 @@ pub unsafe extern "C" fn search_person(raw_search_json: *const i8) -> *const i8 
         search_person(raw_search_json);
     }
 
-    let search_param;
-
-    let id_param = id.to_string();
-    if id == 0 {
-        search_param = [
-            ("AJAXREQUEST", "j_id_jsp_659141934_0"),
-            (
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_1pc51",
-                "true",
-            ),
-            (
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_8pc51",
-                "on",
-            ),
-            (
-                //Показывать удалённых
-                "workspaceSubView:workspaceForm:workspacePageSubView:showDeletedClients",
-                if show_delete { "on" } else { "" }, //"on",
-            ),
-            (
-                //ID
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_12pc51",
-                "",
-            ),
-            (
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_18pc51",
-                "-1",
-            ),
-            (
-                //Фамилия
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_26pc51",
-                fullname.surname.as_str(),
-            ),
-            (
-                //Имя
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_30pc51",
-                fullname.name.as_str(),
-            ),
-            (
-                //Отчество
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_34pc51",
-                fullname.patronymic.as_str(),
-            ),
-            (
-                //0 не важно наличе карт
-                //1 есть карты
-                //2 нет карт
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_43pc51",
-                //&search_request.cards.to_string(),
-                "0",
-            ),
-            (
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_46pc51",
-                "0",
-            ),
-            (
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_108pc51",
-                "j_id_jsp_635818149_109pc51",
-            ),
-            (
-                "workspaceSubView:workspaceForm",
-                "workspaceSubView:workspaceForm",
-            ),
-            ("javax.faces.ViewState", "j_id1"),
-            (
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_53pc51",
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_53pc51",
-            ),
-        ];
-    } else {
-        search_param = [
-            ("AJAXREQUEST", "j_id_jsp_659141934_0"),
-            (
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_1pc51",
-                "true",
-            ),
-            (
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_8pc51",
-                "on",
-            ),
-            (
-                //Показывать удалённых
-                "workspaceSubView:workspaceForm:workspacePageSubView:showDeletedClients",
-                "on", //"on",
-            ),
-            (
-                //ID
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_12pc51",
-                &id_param,
-            ),
-            (
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_18pc51",
-                "-1",
-            ),
-            (
-                //Фамилия
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_26pc51",
-                "",
-            ),
-            (
-                //Имя
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_30pc51",
-                "",
-            ),
-            (
-                //Отчество
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_34pc51",
-                "",
-            ),
-            (
-                //0 не важно наличе карт
-                //1 есть карты
-                //2 нет карт
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_43pc51",
-                //&search_request.cards.to_string(),
-                "0",
-            ),
-            (
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_46pc51",
-                "0",
-            ),
-            (
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_108pc51",
-                "j_id_jsp_635818149_109pc51",
-            ),
-            (
-                "workspaceSubView:workspaceForm",
-                "workspaceSubView:workspaceForm",
-            ),
-            ("javax.faces.ViewState", "j_id1"),
-            (
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_53pc51",
-                "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_53pc51",
-            ),
-        ];
-    }
+    let id_str = id.to_string();
+    let search_param = [
+        ("AJAXREQUEST", "j_id_jsp_659141934_0"),
+        (
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_1pc51",
+            "true",
+        ),
+        (
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_8pc51",
+            "on",
+        ),
+        (
+            //Показывать удалённых
+            "workspaceSubView:workspaceForm:workspacePageSubView:showDeletedClients",
+            if show_delete { "on" } else { "" }, //"on",
+        ),
+        (
+            //ID
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_12pc51",
+            if id == 0 { "" } else { &id_str },
+        ),
+        (
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_18pc51",
+            "-1",
+        ),
+        (
+            //Фамилия
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_26pc51",
+            fullname.surname.as_str(),
+        ),
+        (
+            //Имя
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_30pc51",
+            fullname.name.as_str(),
+        ),
+        (
+            //Отчество
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_34pc51",
+            fullname.patronymic.as_str(),
+        ),
+        (
+            //0 не важно наличе карт
+            //1 есть карты
+            //2 нет карт
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_43pc51",
+            //&search_request.cards.to_string(),
+            "0",
+        ),
+        (
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_46pc51",
+            "0",
+        ),
+        (
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_108pc51",
+            "j_id_jsp_635818149_109pc51",
+        ),
+        (
+            "workspaceSubView:workspaceForm",
+            "workspaceSubView:workspaceForm",
+        ),
+        ("javax.faces.ViewState", "j_id1"),
+        (
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_53pc51",
+            "workspaceSubView:workspaceForm:workspacePageSubView:j_id_jsp_635818149_53pc51",
+        ),
+    ];
 
     let resp = PARSER_CLIENT
         .post(SITE_URL)
@@ -303,11 +235,6 @@ fn select_current_page(pages: i32, result_vector: &mut Vec<SchoolClient>, page_i
 
     if page_index == pages {
         dbg!(&result_vector.len());
-        // fs::write(
-        //     JBOSS_FOLDER.to_owned() + "/" + "search_next.html",
-        //     &resp_text,
-        // )
-        // .expect("Unable to write file");
     }
 }
 
@@ -331,6 +258,7 @@ fn get_person_data(resp_text: &str) -> Vec<SchoolClient> {
             school: cells[6].text(),
             //delete 3 symbols ",00"
             balance: cells[7].text()[0..cells[7].text().len() - 3].to_string(),
+            cards: vec![],
         };
 
         on_page_clients.push(client);
@@ -360,6 +288,7 @@ fn get_fio(fio: String) -> FullName {
             chunks.push(patronymic);
         }
     }
+
     FullName {
         surname: chunks[0].to_string(),
         name: chunks[1].to_string(),

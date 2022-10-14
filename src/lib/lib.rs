@@ -3,6 +3,7 @@ pub mod login;
 pub mod logout;
 pub mod register_device;
 pub mod search;
+pub mod select_person;
 
 extern crate lazy_static;
 extern crate reqwest;
